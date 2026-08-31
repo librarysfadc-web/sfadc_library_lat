@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SFADC Library | Login</title>
+    <!-- LOCAL FILES FOR OFFLINE USE -->
+    <script src="tailwindcss.js"></script>
+    <link rel="stylesheet" href="css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #C1E59F;
+            --primary-dark: #a8d17f;
+            --bg-soft: #f8fafc;
+        }
+        body { background-color: var(--bg-soft); font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .bg-primary { background-color: var(--primary-color); }
+        .text-primary { color: #4a6d2c; }
+        .border-primary { border-color: var(--primary-color); }
+        .btn-primary { background-color: var(--primary-color); transition: all 0.2s ease; }
+        .btn-primary:hover { background-color: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border-t-[12px] border-primary">
+        <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl mb-6 shadow-inner">
+                <i class="fas fa-book-reader text-3xl text-green-800"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">SFADC Library</h1>
+            <p class="text-gray-500 mt-2 font-medium">Digital Resource Management</p>
+        </div>
+
+        <form id="login-form" class="space-y-6">
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Username</label>
+                <input type="text" id="username" required class="w-full px-5 py-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none transition-all" placeholder="Enter username">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Password</label>
+                <input type="password" id="password" required class="w-full px-5 py-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none transition-all" placeholder="••••••••">
+            </div>
+            <div id="login-error" class="text-red-500 text-sm hidden text-center font-semibold">Invalid credentials. Try again.</div>
+            <button type="submit" class="w-full btn-primary py-4 rounded-xl font-bold text-green-900 shadow-lg text-lg">
+                Sign In
+            </button>
+        </form>
+        <div class="mt-8 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">
+            Use configured accounts or fallbacks:<br>
+            Librarian: user / Admin: admin
+        </div>
+    </div>
+
+    <script>
+        // --- IndexedDB Helper ---
+        const DB_NAME = 'SFADCLibraryDB';
+        const DB_VERSION = 1;
+        let db;
+
+        const idbHelper = {
+            init: function() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    request.onupgradeneeded = (e) => {
+                        db = e.target.result;
+                        if (!db.objectStoreNames.contains('system_users')) db.createObjectStore('system_users', { keyPath: 'username' });
+                        if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('patrons')) db.createObjectStore('patrons', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('fines')) db.createObjectStore('fines', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'id' });
+                    };
+                    request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+            getAll: function(storeName) {
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readonly');
+                    const req = tx.objectStore(storeName).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            },
+            saveBulk: function(storeName, dataArray) {
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    store.clear().onsuccess = () => {
+                        dataArray.forEach(item => store.put(item));
+                    };
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            }
+        };
+
+        // Initialize DB and Check for Default Users
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await idbHelper.init();
+                let systemUsers = await idbHelper.getAll('system_users');
+                
+                // Seed default accounts into the database if it's empty
+                if (systemUsers.length === 0) {
+                    systemUsers = [
+                        { name: 'System Administrator', username: 'admin', password: 'password', class: 'Admin' },
+                        { name: 'Default Librarian', username: 'user', password: 'password', class: 'Librarian' }
+                    ];
+                    await idbHelper.saveBulk('system_users', systemUsers);
+                }
+            } catch (err) {
+                console.error("Database initialization failed:", err);
+            }
+        });
+
+        // Login Logic
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
+            
+            try {
+                // Fetch the absolute latest users from the database
+                const systemUsers = await idbHelper.getAll('system_users');
+                
+                // Check if the login matches any user in the database
+                const dynamicUser = systemUsers.find(user => user.username === u && user.password === p);
+
+                if (dynamicUser) {
+                    const roleStr = dynamicUser.class.toLowerCase(); 
+                    
+                    sessionStorage.setItem('sfadc_user', JSON.stringify({ 
+                        role: roleStr, 
+                        name: dynamicUser.name,
+                        username: dynamicUser.username,
+                        photo: dynamicUser.photo || null 
+                    }));
+                    
+                    // Redirect based on role
+                    if (roleStr === 'admin') {
+                        window.location.href = 'admin.html';
+                    } else {
+                        window.location.href = 'user.html';
+                    }
+                } else {
+                    const err = document.getElementById('login-error');
+                    err.classList.remove('hidden');
+                    setTimeout(() => err.classList.add('hidden'), 3000);
+                }
+            } catch (err) {
+                console.error("Login failed due to database error:", err);
+            }
+        });
+    </script>   
+</body>
+</html>

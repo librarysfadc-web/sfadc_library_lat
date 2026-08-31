@@ -1,0 +1,1454 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SFADC Librarian Dashboard</title>
+    <!-- LOCAL FILES FOR OFFLINE USE -->
+    <script src="tailwindcss.js"></script>
+    <link rel="stylesheet" href="css/all.min.css">
+    <script src="xlsx.full.min.js"></script>
+    <style>
+        :root { --primary-color: #C1E59F; --primary-dark: #a8d17f; --bg-soft: #f8fafc; }
+        body { background-color: var(--bg-soft); font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .bg-primary { background-color: var(--primary-color); }
+        .text-primary { color: #4a6d2c; }
+        .border-primary { border-color: var(--primary-color); }
+        .btn-primary { background-color: var(--primary-color); transition: all 0.2s ease; }
+        .btn-primary:hover { background-color: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .nav-link { padding: 0.5rem 1rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500; color: #4a5568; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem; }
+        .nav-link:hover { background-color: #f1f5f9; }
+        .nav-link.active { background-color: var(--primary-color); color: #1a300a; font-weight: 700; }
+        .home-card { background: white; border-radius: 1.5rem; padding: 2.5rem; border: 1px solid #edf2f7; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; display: flex; align-items: center; gap: 1.5rem; }
+        .home-card:hover { border-color: var(--primary-color); transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05); }
+        .home-card .icon-box { width: 64px; height: 64px; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; transition: all 0.3s; }
+        .home-card:hover .icon-box { transform: scale(1.1); }
+        .hidden-view { display: none !important; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 10px; }
+        .back-btn { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 0.75rem; color: #4a5568; transition: all 0.2s; background: white; border: 1px solid #edf2f7; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .back-btn:hover { background-color: var(--primary-color); color: #1a300a; border-color: var(--primary-dark); transform: translateX(-3px); }
+        .container-constrained { max-width: 80rem; margin-left: auto; margin-right: auto; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="dashboard" class="flex-1 flex flex-col hidden"> <!-- Hidden initially until DB loads -->
+        <header class="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-10 shadow-sm sticky top-0 z-50">
+            <div class="flex items-center gap-10">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="switchView('home')">
+                    <div class="p-2 bg-primary rounded-lg"><i class="fas fa-leaf text-green-800"></i></div>
+                    <span class="font-bold text-xl text-gray-800 tracking-tight">SFADC Lib</span>
+                </div>
+                <nav class="hidden xl:flex items-center gap-2">
+                    <button onclick="switchView('home')" class="nav-link" id="nav-home">Home</button>
+                    <button onclick="switchView('patrons')" class="nav-link" id="nav-patrons">Patrons</button>
+                    <button onclick="switchView('catalog')" class="nav-link" id="nav-catalog">Catalog</button>
+                    <button onclick="switchView('circulation')" class="nav-link" id="nav-circulation">Circulation</button>
+                    <button onclick="switchView('fines')" class="nav-link" id="nav-fines">Late Fines</button>
+                    <button onclick="switchView('additional-fines')" class="nav-link" id="nav-additional-fines">Additional Fines</button>
+                    <button onclick="switchView('history')" class="nav-link" id="nav-history">History</button>
+                    <button onclick="switchView('settings')" class="nav-link" id="nav-settings">Settings</button>
+                </nav>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-4 border-l pl-6 border-gray-100">
+                    <div class="text-right">
+                        <div class="text-sm font-bold text-gray-800 leading-tight" id="display-username">Librarian</div>
+                        <div class="text-[10px] text-gray-400 uppercase tracking-widest font-bold" id="display-role">LIBRARIAN</div>
+                    </div>
+                    <div id="user-avatar" class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-bold text-green-800 border-2 border-white shadow-sm overflow-hidden">LI</div>
+                    <button onclick="logout()" class="ml-2 p-2 text-gray-400 hover:text-red-500 transition-colors">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 p-10 w-full overflow-y-auto">
+            <div id="view-home" class="container-constrained grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="home-card" onclick="switchView('patrons')"><div class="icon-box bg-blue-50 text-blue-500"><i class="fas fa-users"></i></div><div><h3 class="text-xl font-bold text-gray-800">Patrons</h3><p class="text-sm text-gray-500 mt-1">Manage library members.</p></div></div>
+                <div class="home-card" onclick="switchView('catalog')"><div class="icon-box bg-green-50 text-green-500"><i class="fas fa-book"></i></div><div><h3 class="text-xl font-bold text-gray-800">Catalog</h3><p class="text-sm text-gray-500 mt-1">Browse the collection.</p></div></div>
+                <div class="home-card" onclick="switchView('circulation')"><div class="icon-box bg-cyan-50 text-cyan-600"><i class="fas fa-exchange-alt"></i></div><div><h3 class="text-xl font-bold text-gray-800">Circulation</h3><p class="text-sm text-gray-500 mt-1">Check out, return, & renew.</p></div></div>
+                <div class="home-card" onclick="switchView('fines')"><div class="icon-box bg-red-50 text-red-500"><i class="fas fa-dollar-sign"></i></div><div><h3 class="text-xl font-bold text-gray-800">Late Fines</h3><p class="text-sm text-gray-500 mt-1">Review overdue item fines.</p></div></div>
+                <div class="home-card" onclick="switchView('additional-fines')"><div class="icon-box bg-purple-50 text-purple-500"><i class="fas fa-file-invoice-dollar"></i></div><div><h3 class="text-xl font-bold text-gray-800">Additional Fines</h3><p class="text-sm text-gray-500 mt-1">Damage, missing items.</p></div></div>
+                <div class="home-card" onclick="switchView('history')"><div class="icon-box bg-gray-100 text-gray-600"><i class="fas fa-history"></i></div><div><h3 class="text-xl font-bold text-gray-800">History</h3><p class="text-sm text-gray-500 mt-1">View full logs.</p></div></div>
+                <div class="home-card" onclick="switchView('settings')"><div class="icon-box bg-slate-100 text-slate-600"><i class="fas fa-cog"></i></div><div><h3 class="text-xl font-bold text-gray-800">Settings</h3><p class="text-sm text-gray-500 mt-1">Update your password.</p></div></div>
+            </div>
+
+            <!-- PATRONS VIEW -->
+            <div id="view-patrons" class="hidden-view space-y-4">
+                <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                <div class="flex flex-col gap-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-800">Patron Management</h2>
+                    </div>
+                    
+                    <!-- SEARCH AND FILTER BAR -->
+                    <div class="flex flex-col md:flex-row gap-4 mb-2">
+                        <div class="flex-1 relative">
+                            <input type="text" id="student-search-input" onkeyup="renderPatrons()" placeholder="Search by ID or Name..." class="w-full px-12 py-3.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none shadow-sm text-sm">
+                            <i class="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        <div class="w-full md:w-56">
+                            <select id="student-class-filter" onchange="renderPatrons()" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none shadow-sm bg-white text-gray-700 text-sm">
+                                <option value="">All Categories</option>
+                                <option value="staff">Staff</option>
+                                <option value="1">Class 1</option>
+                                <option value="2">Class 2</option>
+                                <option value="3">Class 3</option>
+                                <option value="4">Class 4</option>
+                                <option value="5">Class 5</option>
+                                <option value="6">Class 6</option>
+                                <option value="7">Class 7</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-3xl shadow-sm border overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b">
+                                <tr>
+                                    <th class="p-6">ID / Ad No.</th>
+                                    <th class="p-6">Name</th>
+                                    <th class="p-6">Class / Role</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patron-table-body" class="divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-patron-detail" class="hidden-view space-y-8"><div class="container-constrained"><button onclick="switchView('patrons')" class="back-btn"><i class="fas fa-arrow-left"></i></button><div id="patron-detail-content" class="space-y-8"></div></div></div>
+
+            <!-- CATALOG VIEW -->
+            <div id="view-catalog" class="hidden-view space-y-4">
+                <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                <div class="flex justify-between items-center">
+                    <div class="flex-1 max-w-xl relative">
+                        <input type="text" onkeyup="renderCatalog(this.value)" placeholder="Search by Barcode, Class No., Title, or Author..." class="w-full px-12 py-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none shadow-sm">
+                        <i class="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6" id="catalog-grid"></div>
+            </div>
+
+            <div id="view-book-detail" class="hidden-view space-y-8"><div class="container-constrained"><button onclick="switchView('catalog')" class="back-btn"><i class="fas fa-arrow-left"></i></button><div id="book-detail-content" class="space-y-8"></div></div></div>
+
+            <!-- COMBINED CIRCULATION VIEW -->
+            <div id="view-circulation" class="hidden-view py-10">
+                <div class="container-constrained">
+                    <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                    <div class="bg-white rounded-3xl shadow-xl p-10 border border-gray-100 max-w-2xl mx-auto">
+                        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+                            <i class="fas fa-exchange-alt text-cyan-600"></i> Circulation Desk
+                        </h2>
+                        
+                        <!-- Tabs -->
+                        <div class="flex gap-2 p-1.5 bg-gray-100 rounded-xl mb-8">
+                            <button onclick="setCirculationMode('checkout')" id="tab-checkout" class="flex-1 py-3 text-sm font-bold rounded-lg bg-white shadow-sm text-gray-800 transition-all flex items-center justify-center gap-2"><i class="fas fa-arrow-up text-orange-500"></i> Check Out</button>
+                            <button onclick="setCirculationMode('checkin')" id="tab-checkin" class="flex-1 py-3 text-sm font-bold rounded-lg text-gray-500 hover:text-gray-800 transition-all flex items-center justify-center gap-2"><i class="fas fa-arrow-down text-indigo-500"></i> Check In</button>
+                            <button onclick="setCirculationMode('renew')" id="tab-renew" class="flex-1 py-3 text-sm font-bold rounded-lg text-gray-500 hover:text-gray-800 transition-all flex items-center justify-center gap-2"><i class="fas fa-sync text-purple-500"></i> Renew</button>
+                        </div>
+
+                        <!-- Unified Form -->
+                        <form onsubmit="handleTransaction(event)" class="space-y-6">
+                            <input type="hidden" id="circ-mode" value="checkout">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Barcode</label>
+                                <input type="text" id="circ-book-id" oninput="lookupBookName(this.value)" list="book-list" required class="w-full px-5 py-4 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-primary focus:outline-none transition-all">
+                                <div id="circ-book-name-display" class="mt-2 text-sm font-semibold transition-all min-h-[1.25rem]"></div>
+                            </div>
+                            <div id="circ-patron-group">
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Patron ID / Ad No.</label>
+                                <input type="text" id="circ-patron-id" oninput="lookupPatronName(this.value)" list="student-list" required class="w-full px-5 py-4 rounded-xl border border-gray-100 bg-gray-50 focus:ring-2 focus:ring-primary focus:outline-none transition-all">
+                                <div id="circ-patron-name-display" class="mt-2 text-sm font-semibold transition-all min-h-[1.25rem]"></div>
+                            </div>
+                            <div class="pt-4 flex gap-4">
+                                <button type="button" onclick="switchView('home')" class="flex-1 py-4 bg-gray-100 hover:bg-gray-200 transition-colors rounded-xl font-bold text-gray-600">Cancel</button>
+                                <button type="submit" id="circ-submit-btn" class="flex-[2] py-4 btn-primary rounded-xl font-bold text-green-900 transition-colors shadow-sm">Process Check Out</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HISTORY VIEW -->
+            <div id="view-history" class="hidden-view space-y-4 w-full">
+                <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                <h2 class="text-2xl font-bold text-gray-800">History & Logs</h2>
+                
+                <!-- History Tabs -->
+                <div class="flex gap-6 border-b border-gray-200 mb-6">
+                    <button onclick="setHistoryTab('books')" id="tab-hist-books" class="pb-3 text-sm font-bold border-b-2 border-primary text-primary transition-colors">Book Activity</button>
+                    <button onclick="setHistoryTab('fines')" id="tab-hist-fines" class="pb-3 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-800 transition-colors">Fines & Payments</button>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border overflow-hidden w-full">
+                    <table class="w-full text-left">
+                        <thead id="history-table-head" class="bg-gray-50 text-[10px] font-bold border-b uppercase tracking-widest text-gray-400">
+                            <tr>
+                                <th class="p-6">Type</th>
+                                <th class="p-6">Details</th>
+                                <th class="p-6">Patron</th>
+                                <th class="p-6">Actor/User</th>
+                                <th class="p-6">Date & Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SETTINGS VIEW -->
+            <div id="view-settings" class="hidden-view space-y-8">
+                <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <!-- Change Password Form -->
+                    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden h-fit">
+                        <div class="p-6 bg-gray-50 border-b"><h3 class="font-bold text-gray-800">Change Account Password</h3></div>
+                        <form onsubmit="handleChangePassword(event)" class="p-8 space-y-6">
+                            <div><label class="block text-xs font-bold text-gray-400 uppercase mb-2">Current Password</label><input type="password" id="pw-current" required class="w-full px-4 py-3 border rounded-xl"></div>
+                            <div><label class="block text-xs font-bold text-gray-400 uppercase mb-2">New Password</label><input type="password" id="pw-new" required class="w-full px-4 py-3 border rounded-xl"></div>
+                            <div><label class="block text-xs font-bold text-gray-400 uppercase mb-2">Confirm New Password</label><input type="password" id="pw-confirm" required class="w-full px-4 py-3 border rounded-xl"></div>
+                            <button type="submit" class="w-full btn-primary py-4 rounded-xl font-bold text-green-900 shadow-sm">Update Password</button>
+                        </form>
+                    </div>
+
+                    <!-- AI Chatbot Configuration -->
+                    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden h-fit">
+                        <div class="p-6 bg-gray-50 border-b"><h3 class="font-bold text-gray-800"><i class="fas fa-brain text-green-700 mr-2"></i> Online AI Chatbot</h3></div>
+                        <form onsubmit="handleAISettings(event)" class="p-8 space-y-6">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">API Provider</label>
+                                <select id="ai-provider" onchange="toggleAIModelPlaceholder()" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none bg-white text-gray-700">
+                                    <option value="none">None (Local Rule Agent Only)</option>
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="openai">OpenAI</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">API Key</label>
+                                <input type="password" id="ai-key" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Paste your API key here...">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Model Name</label>
+                                <input type="text" id="ai-model" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:outline-none" placeholder="e.g. gemini-1.5-flash or gpt-4o-mini">
+                            </div>
+                            <button type="submit" class="w-full btn-primary py-4 rounded-xl font-bold text-green-900 shadow-sm">Save AI Configuration</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LATE FINES VIEW -->
+            <div id="view-fines" class="hidden-view space-y-4">
+                <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Late Fines Overview</h2>
+                    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                        <div class="relative w-full md:w-72">
+                            <input type="text" id="late-fines-search" onkeyup="renderFines()" placeholder="Search by name or ID..." class="w-full px-10 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none shadow-sm text-sm">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        <div class="w-full md:w-48">
+                            <select id="late-fines-class-filter" onchange="renderFines()" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary focus:outline-none shadow-sm bg-white text-gray-700 text-sm">
+                                <option value="">All Categories</option>
+                                <option value="staff">Staff</option>
+                                <option value="1">Class 1</option>
+                                <option value="2">Class 2</option>
+                                <option value="3">Class 3</option>
+                                <option value="4">Class 4</option>
+                                <option value="5">Class 5</option>
+                                <option value="6">Class 6</option>
+                                <option value="7">Class 7</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b">
+                            <tr>
+                                <th class="p-6">Patron</th>
+                                <th class="p-6">Reason</th>
+                                <th class="p-6">Amount</th>
+                                <th class="p-6">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fines-table-body" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ADDITIONAL FINES VIEW -->
+            <div id="view-additional-fines" class="hidden-view space-y-4">
+                <button onclick="switchView('home')" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+                
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Additional Fines Overview</h2>
+                    <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                        <div class="relative w-full md:w-72">
+                            <input type="text" id="add-fines-search" onkeyup="renderAdditionalFines()" placeholder="Search by name or ID..." class="w-full px-10 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-sm text-sm">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        <div class="w-full md:w-48">
+                            <select id="add-fines-class-filter" onchange="renderAdditionalFines()" class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-purple-500 focus:outline-none shadow-sm bg-white text-gray-700 text-sm">
+                                <option value="">All Categories</option>
+                                <option value="staff">Staff</option>
+                                <option value="1">Class 1</option>
+                                <option value="2">Class 2</option>
+                                <option value="3">Class 3</option>
+                                <option value="4">Class 4</option>
+                                <option value="5">Class 5</option>
+                                <option value="6">Class 6</option>
+                                <option value="7">Class 7</option>
+                                <option value="8">Class 8</option>
+                                <option value="9">Class 9</option>
+                                <option value="10">Class 10</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b">
+                            <tr>
+                                <th class="p-6">Patron</th>
+                                <th class="p-6">Reason</th>
+                                <th class="p-6">Amount</th>
+                                <th class="p-6">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="additional-fines-table-body" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- AI Chatbot Floating Widget -->
+    <div id="ai-chatbot" class="fixed bottom-6 right-6 z-[150] flex flex-col items-end">
+        <!-- Chat Window -->
+        <div id="chat-window" class="hidden w-80 sm:w-96 h-[480px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden mb-4 transition-all duration-300 transform scale-95 opacity-0 origin-bottom-right">
+            <!-- Header -->
+            <div class="p-4 bg-green-800 text-white flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <div class="p-1.5 bg-white/20 rounded-lg"><i class="fas fa-robot"></i></div>
+                    <div>
+                        <h4 class="font-bold text-sm">Library AI Assistant</h4>
+                        <p class="text-[10px] text-green-200" id="ai-status-label">Local Rule Agent</p>
+                    </div>
+                </div>
+                <button onclick="toggleChatWindow()" class="text-white/80 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <!-- Messages -->
+            <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50 text-sm">
+                <!-- Greeting -->
+                <div class="flex items-start gap-2.5">
+                    <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-800 text-xs font-bold shrink-0">AI</div>
+                    <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-gray-700 max-w-[80%]">
+                        Hello! I am your SFADC Library Assistant. Ask me about books, active loans, outstanding fines, or type "help" for a list of capabilities.
+                    </div>
+                </div>
+            </div>
+            <!-- Input -->
+            <form onsubmit="handleChatSubmit(event)" class="p-3 bg-white border-t flex gap-2">
+                <input type="text" id="chat-input" placeholder="Ask me something..." class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm">
+                <button type="submit" class="w-10 h-10 bg-green-800 hover:bg-green-700 text-white rounded-xl flex items-center justify-center shadow-sm shrink-0 transition-all"><i class="fas fa-paper-plane text-xs"></i></button>
+            </form>
+        </div>
+        <!-- Toggle Button -->
+        <button onclick="toggleChatWindow()" class="w-14 h-14 bg-green-800 hover:bg-green-700 text-white rounded-full flex items-center justify-center shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer">
+            <i class="fas fa-comment-dots text-xl" id="chat-toggle-icon"></i>
+        </button>
+    </div>
+
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-8 py-4 rounded-2xl shadow-2xl translate-y-32 transition-all duration-300 opacity-0 z-[200] flex items-center gap-4"><i class="fas fa-check-circle text-primary"></i><span id="toast-message" class="text-sm font-bold"></span></div>
+
+    <script>
+        // --- IndexedDB Helper ---
+        const DB_NAME = 'SFADCLibraryDB';
+        const DB_VERSION = 1;
+        let db;
+
+        const idbHelper = {
+            init: function() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    request.onupgradeneeded = (e) => {
+                        db = e.target.result;
+                        if (!db.objectStoreNames.contains('system_users')) db.createObjectStore('system_users', { keyPath: 'username' });
+                        if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('patrons')) db.createObjectStore('patrons', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('fines')) db.createObjectStore('fines', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'id' });
+                    };
+                    request.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+            getAll: function(storeName) {
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readonly');
+                    const req = tx.objectStore(storeName).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            },
+            saveBulk: function(storeName, dataArray) {
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    store.clear().onsuccess = () => {
+                        dataArray.forEach(item => store.put(item));
+                    };
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            }
+        };
+
+        // Data Management Variables (empty arrays to ensure no unadded data)
+        let systemUsers = [];
+        let books = [];
+        let patrons = [];
+        let fines = [];
+        let history = [];
+        let fineSettings = { id: 'config', gracePeriod: 7, fineAmount: 10, baseInventoryValue: 0, aiProvider: 'none', aiKey: '', aiModel: '' };
+        let currentUser = JSON.parse(sessionStorage.getItem('sfadc_user'));
+        let currentHistoryTab = 'books';
+        
+        // App Initialization
+        async function initializeApp() {
+            // Auth Check First
+            const isLibrarian = currentUser && (
+                (currentUser.role && currentUser.role.toLowerCase() === 'librarian') ||
+                (currentUser.class && currentUser.class.toLowerCase() === 'librarian')
+            );
+            if (!isLibrarian) { window.location.href = 'index.html'; return; }
+
+            try {
+                await idbHelper.init();
+                
+                // Fetch data from IndexedDB
+                systemUsers = await idbHelper.getAll('system_users');
+                books = await idbHelper.getAll('books');
+                patrons = await idbHelper.getAll('patrons');
+                fines = await idbHelper.getAll('fines');
+                history = await idbHelper.getAll('history');
+                
+                const settingsData = await idbHelper.getAll('settings');
+                if (settingsData.length > 0) fineSettings = settingsData[0];
+
+                updateHeaderProfile();
+                updateDatalists();
+                document.getElementById('dashboard').classList.remove('hidden');
+
+                // Restore active view on refresh
+                const savedView = sessionStorage.getItem('active_view') || 'home';
+                const savedParam = sessionStorage.getItem('active_view_param');
+                switchView(savedView, savedParam);
+            } catch (err) {
+                console.error("Initialization error:", err);
+                showToast("Error loading database.", "error");
+            }
+        }
+
+        // Global async save & history
+        const syncChannel = new BroadcastChannel('sfadc_sync_channel');
+
+        async function save() {
+            try {
+                await Promise.all([
+                    idbHelper.saveBulk('books', books),
+                    idbHelper.saveBulk('patrons', patrons),
+                    idbHelper.saveBulk('history', history),
+                    idbHelper.saveBulk('fines', fines),
+                    idbHelper.saveBulk('system_users', systemUsers),
+                    idbHelper.saveBulk('settings', [fineSettings])
+                ]);
+                updateDatalists();
+                syncChannel.postMessage('sync_db');
+            } catch (err) {
+                console.error("Save error:", err);
+                showToast("Failed to save data.", "error");
+            }
+        }
+
+        async function reloadFreshData() {
+            try {
+                systemUsers = await idbHelper.getAll('system_users');
+                books = await idbHelper.getAll('books');
+                patrons = await idbHelper.getAll('patrons');
+                fines = await idbHelper.getAll('fines');
+                history = await idbHelper.getAll('history');
+                
+                const settingsData = await idbHelper.getAll('settings');
+                if (settingsData.length > 0) fineSettings = settingsData[0];
+
+                updateHeaderProfile();
+                updateDatalists();
+                
+                // Re-render the active view
+                const activeNav = document.querySelector('.nav-link.active');
+                if (activeNav) {
+                    const activeViewId = activeNav.id.replace('nav-', '');
+                    if (activeViewId === 'patrons') renderPatrons();
+                    if (activeViewId === 'catalog') renderCatalog();
+                    if (activeViewId === 'fines') renderFines();
+                    if (activeViewId === 'additional-fines') renderAdditionalFines();
+                    if (activeViewId === 'history') renderHistory();
+                    if (activeViewId === 'settings') renderSettings();
+                }
+            } catch (err) {
+                console.error("Error reloading data: ", err);
+            }
+        }
+
+        // Setup synchronization listeners
+        syncChannel.onmessage = async (event) => {
+            if (event.data === 'sync_db') {
+                await reloadFreshData();
+            }
+        };
+
+        window.addEventListener('focus', async () => {
+            if (db) {
+                await reloadFreshData();
+            }
+        });
+
+        // Helper to format class representation cleanly
+        function formatClass(cls) {
+            if (!cls) return 'Unassigned';
+            return cls.toString().replace(/Class\s+/i, '');
+        }
+
+        // Autocomplete list dynamic generation
+        function updateDatalists() {
+            // Student list
+            const sDl = document.getElementById('student-list') || (() => {
+                const newDl = document.createElement('datalist');
+                newDl.id = 'student-list';
+                document.body.appendChild(newDl);
+                return newDl;
+            })();
+            sDl.innerHTML = patrons.map(p => `<option value="${p.id}">${p.name} (${formatClass(p.studentClass)})</option>`).join('');
+
+            // Book list
+            const bDl = document.getElementById('book-list') || (() => {
+                const newDl = document.createElement('datalist');
+                newDl.id = 'book-list';
+                document.body.appendChild(newDl);
+                return newDl;
+            })();
+            bDl.innerHTML = books.map(b => `<option value="${b.id}">${b.title} [${b.status.toUpperCase()}]</option>`).join('');
+        }
+
+        // Look up book name to show immediately in the form
+        function lookupBookName(bid) {
+            const displayDiv = document.getElementById('circ-book-name-display');
+            if (!displayDiv) return;
+            if (!bid.trim()) { displayDiv.innerHTML = ''; return; }
+            const book = books.find(b => b.id === bid.trim());
+            if (book) {
+                const statusColor = book.status === 'available' ? 'text-green-700' : 'text-orange-700';
+                displayDiv.innerHTML = `<i class="fas fa-book text-primary mr-2"></i><span class="text-green-800 font-bold">${book.title}</span> <span class="${statusColor} text-xs font-semibold">(${book.status})</span>`;
+            } else {
+                displayDiv.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-2"></i><span class="text-red-500 font-bold">Book not found</span>`;
+            }
+        }
+
+        // Look up student name to show immediately in the form
+        function lookupPatronName(pid) {
+            const displayDiv = document.getElementById('circ-patron-name-display');
+            if (!displayDiv) return;
+            if (!pid.trim()) { displayDiv.innerHTML = ''; return; }
+            const patron = patrons.find(p => p.id === pid.trim());
+            if (patron) {
+                displayDiv.innerHTML = `<i class="fas fa-user text-green-600 mr-2"></i><span class="text-green-700 font-bold">${patron.name} (${formatClass(patron.studentClass)})</span>`;
+            } else {
+                displayDiv.innerHTML = `<i class="fas fa-exclamation-circle text-red-500 mr-2"></i><span class="text-red-500 font-bold">Patron not found</span>`;
+            }
+        }
+
+        async function logHistory(type, item, actor, pid = null, bid = null) { 
+            history.push({ 
+                id: Date.now().toString() + Math.random().toString(36).substring(2, 5), 
+                type, item, actor, pid, bid, date: new Date().toISOString() 
+            }); 
+            if(history.length > 1000) history.shift(); 
+        }
+
+        function logout() { 
+            sessionStorage.removeItem('sfadc_user'); 
+            sessionStorage.removeItem('active_view');
+            sessionStorage.removeItem('active_view_param');
+            window.location.href = 'index.html'; 
+        }
+
+        function switchView(viewId, param = null) {
+            sessionStorage.setItem('active_view', viewId);
+            if (param) sessionStorage.setItem('active_view_param', param);
+            else sessionStorage.removeItem('active_view_param');
+
+            document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden-view'));
+            const activeView = document.getElementById(`view-${viewId}`);
+            if(activeView) activeView.classList.remove('hidden-view');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            const activeNav = document.getElementById(`nav-${viewId}`);
+            if(activeNav) activeNav.classList.add('active');
+            window.scrollTo(0,0);
+            
+            if(viewId === 'patrons') renderPatrons();
+            if(viewId === 'catalog') renderCatalog();
+            if(viewId === 'fines') renderFines();
+            if(viewId === 'additional-fines') renderAdditionalFines();
+            if(viewId === 'history') renderHistory();
+            if(viewId === 'patron-detail') renderPatronDetail(param);
+            if(viewId === 'book-detail') renderBookDetail(param);
+            if(viewId === 'settings') renderSettings();
+            if(viewId === 'circulation') document.getElementById('circ-book-id').focus();
+        }
+
+        function updateHeaderProfile() {
+            if (!currentUser) return;
+            
+            const storedUser = systemUsers.find(u => u.username === currentUser.username) || currentUser;
+
+            const displayName = storedUser.name || currentUser.username || "Librarian";
+            const displayRole = storedUser.class || storedUser.role || "LIBRARIAN";
+
+            document.getElementById('display-username').innerText = displayName;
+            document.getElementById('display-role').innerText = displayRole.toUpperCase();
+
+            const avatarContainer = document.getElementById('user-avatar');
+            if (storedUser.photo) {
+                avatarContainer.innerHTML = `<img src="${storedUser.photo}" class="w-full h-full object-cover rounded-full" alt="${displayName}">`;
+            } else {
+                avatarContainer.innerHTML = displayName.substring(0, 2).toUpperCase();
+            }
+        }
+
+        // --- CIRCULATION LOGIC ---
+        function setCirculationMode(mode) {
+            document.getElementById('circ-mode').value = mode;
+
+            ['checkout', 'checkin', 'renew'].forEach(m => {
+                const tab = document.getElementById(`tab-${m}`);
+                if (m === mode) {
+                    tab.classList.add('bg-white', 'shadow-sm', 'text-gray-800');
+                    tab.classList.remove('text-gray-500');
+                } else {
+                    tab.classList.remove('bg-white', 'shadow-sm', 'text-gray-800');
+                    tab.classList.add('text-gray-500');
+                }
+            });
+
+            const patronGroup = document.getElementById('circ-patron-group');
+            const patronInput = document.getElementById('circ-patron-id');
+            const submitBtn = document.getElementById('circ-submit-btn');
+
+            document.getElementById('circ-patron-name-display').innerHTML = '';
+            document.getElementById('circ-book-name-display').innerHTML = '';
+
+            if (mode === 'checkout') {
+                patronGroup.style.display = 'block';
+                patronInput.required = true;
+                submitBtn.innerText = 'Process Check Out';
+                submitBtn.className = 'flex-[2] py-4 btn-primary rounded-xl font-bold text-green-900 shadow-sm transition-colors';
+            } else if (mode === 'checkin') {
+                patronGroup.style.display = 'none';
+                patronInput.required = false;
+                submitBtn.innerText = 'Process Return';
+                submitBtn.className = 'flex-[2] py-4 bg-indigo-500 text-white hover:bg-indigo-600 rounded-xl font-bold shadow-sm transition-colors';
+            } else if (mode === 'renew') {
+                patronGroup.style.display = 'none';
+                patronInput.required = false;
+                submitBtn.innerText = 'Apply Renewal';
+                submitBtn.className = 'flex-[2] py-4 bg-purple-500 text-white hover:bg-purple-600 rounded-xl font-bold shadow-sm transition-colors';
+            }
+        }
+
+        async function handleTransaction(e) {
+            e.preventDefault(); 
+            const type = document.getElementById('circ-mode').value;
+            const todayObj = new Date();
+            todayObj.setHours(0,0,0,0);
+
+            if(type === 'checkout') {
+                const bid = document.getElementById('circ-book-id').value.trim(), pid = document.getElementById('circ-patron-id').value.trim();
+                const b = books.find(x => x.id === bid), p = patrons.find(x => x.id === pid);
+                if(!b || !p) return showToast("Invalid ID(s)", "error");
+                if(b.status !== 'available') return showToast("Book unavailable", "error");
+                
+                const activeLoans = books.filter(book => book.status === 'loaned' && book.holder === pid);
+                if (activeLoans.length >= 2) {
+                    return showToast("Limit reached! Patron already has 2 books checked out.", "error");
+                }
+                
+                b.status = 'loaned'; b.holder = pid; b.renewalCount = 0; 
+                const d = new Date(); d.setDate(d.getDate() + (fineSettings.gracePeriod || 7)); 
+                b.dueDate = d.toISOString().split('T')[0];
+                await logHistory('OUT', b.title, p.name, pid, bid); showToast("Check-out successful!");
+            } else if(type === 'checkin') {
+                const bid = document.getElementById('circ-book-id').value.trim(), b = books.find(x => x.id === bid);
+                if(!b || b.status !== 'loaned') return showToast("Not on loan", "error");
+                const p = patrons.find(x => x.id === b.holder);
+                
+                const dueDateObj = new Date(b.dueDate);
+                dueDateObj.setHours(0,0,0,0);
+                
+                let returnedMessage = "Book returned successfully.";
+                if (todayObj > dueDateObj && p) { 
+                    const isStaff = (p.studentClass || '').toString().toLowerCase() === 'staff';
+                    if (!isStaff) {
+                        const diffDays = Math.round((todayObj - dueDateObj) / (1000 * 60 * 60 * 24)); 
+                        if (diffDays > 0) { 
+                            const fineAmt = diffDays * (fineSettings.fineAmount || 10); 
+                            p.balance += fineAmt; 
+                            fines.push({ id: 'F' + Date.now(), patronId: p.id, patronName: p.name, reason: `Late Return: ${b.title}`, amount: fineAmt, date: new Date().toISOString().split('T')[0], fineType: 'LATE' }); 
+                            returnedMessage = `Book returned. Late fine of ₹${fineAmt.toFixed(2)} applied!`;
+                        } 
+                    } else {
+                        returnedMessage = "Book returned. Staff is exempt from late fines.";
+                    }
+                } else {
+                    returnedMessage = "Book returned.";
+                }
+                
+                b.status = 'available'; b.holder = null; b.dueDate = null; b.renewalCount = 0;
+                await logHistory('IN', b.title, p?.name || 'System', p?.id, bid); 
+                showToast(returnedMessage, returnedMessage.includes("applied") ? "error" : "success");
+            } else if(type === 'renew') {
+                const bid = document.getElementById('circ-book-id').value.trim(), b = books.find(x => x.id === bid);
+                if(!b || b.status !== 'loaned') return showToast("Not on loan", "error");
+                
+                const dueDateObj = new Date(b.dueDate);
+                dueDateObj.setHours(0,0,0,0);
+                if (todayObj > dueDateObj) return showToast("Book is overdue. Cannot renew, please check in.", "error");
+
+                if (typeof b.renewalCount === 'undefined') b.renewalCount = 0;
+                if (b.renewalCount >= 2) return showToast("Maximum renewal limit reached (2 times). Please check in the book.", "error");
+
+                b.renewalCount++;
+                const d = new Date(); d.setDate(d.getDate() + (fineSettings.gracePeriod || 7)); 
+                b.dueDate = d.toISOString().split('T')[0];
+                
+                const patron = patrons.find(p => p.id === b.holder);
+                await logHistory('RENEW', b.title, patron ? patron.name : 'System', b.holder, bid); 
+                showToast(`Renewed for 1 week. (Renewal ${b.renewalCount} of 2)`);
+            }
+            await save(); 
+            e.target.reset();
+            document.getElementById('circ-patron-name-display').innerHTML = '';
+            document.getElementById('circ-book-name-display').innerHTML = '';
+            document.getElementById('circ-book-id').focus();
+        }
+
+        // --- PATRONS LOGIC ---
+        function renderPatrons() { 
+            const tbody = document.getElementById('patron-table-body'); 
+            const searchInput = document.getElementById('student-search-input');
+            const classSelect = document.getElementById('student-class-filter');
+            
+            const fNameAd = searchInput ? searchInput.value.toLowerCase() : '';
+            const fClass = classSelect ? classSelect.value : '';
+
+            const filteredPatrons = patrons.filter(p => {
+                const matchesSearch = p.name.toLowerCase().includes(fNameAd) || p.id.toLowerCase().includes(fNameAd);
+                let matchesClass = true;
+                if (fClass !== '') {
+                    const sClass = (p.studentClass || '').toString().toLowerCase();
+                    const classRegex = new RegExp(`\\b${fClass}\\b`, 'i');
+                    matchesClass = classRegex.test(sClass) || sClass === fClass;
+                }
+                return matchesSearch && matchesClass;
+            });
+
+            tbody.innerHTML = filteredPatrons.map(p => `
+                <tr class="hover:bg-primary/20 transition-colors cursor-pointer" onclick="switchView('patron-detail', '${p.id}')">
+                    <td class="p-6 text-xs font-mono text-gray-500">${p.id}</td>
+                    <td class="p-6 font-bold text-gray-800">${p.name}</td>
+                    <td class="p-6 text-sm text-gray-600">${formatClass(p.studentClass)}</td>
+                </tr>
+            `).join(''); 
+            
+            if(!filteredPatrons.length) tbody.innerHTML = `<tr><td colspan=\"3\" class=\"p-12 text-center text-gray-400 italic\">No patrons found matching the filters.</td></tr>`; 
+        }
+
+        function renderPatronDetail(pid) { 
+            const patron = patrons.find(p => p.id === pid); 
+            const container = document.getElementById('patron-detail-content'); 
+            if (!patron) return; 
+            
+            const patronHistory = history.filter(h => h.pid === pid).reverse(); 
+
+            const bookActivity = patronHistory.filter(h => ['OUT', 'IN', 'RENEW'].includes(h.type.toUpperCase()));
+
+            const borrowedMap = {};
+            patronHistory.filter(h => h.type.toUpperCase() === 'OUT').forEach(h => {
+                if(!borrowedMap[h.bid]) borrowedMap[h.bid] = { bid: h.bid, title: h.item, count: 0, lastDate: h.date };
+                borrowedMap[h.bid].count++;
+                if(new Date(h.date) > new Date(borrowedMap[h.bid].lastDate)) borrowedMap[h.bid].lastDate = h.date;
+            });
+            const booksTaken = Object.values(borrowedMap).sort((a,b) => new Date(b.lastDate) - new Date(a.lastDate));
+
+            container.innerHTML = `
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="bg-white rounded-3xl border p-8 text-center h-fit sticky top-24">
+                    <div class="w-24 h-24 bg-primary rounded-3xl mx-auto flex items-center justify-center text-3xl font-bold text-green-900 mb-4">${patron.name.substring(0,2).toUpperCase()}</div>
+                    <h3 class="text-2xl font-bold">${patron.name}</h3>
+                    <p class="text-xs font-bold text-gray-400 uppercase">PATRON</p>
+                    <div class="mt-8 space-y-4 text-left">
+                        <div class="p-4 bg-gray-50 rounded-2xl"><label class="text-[10px] font-bold text-gray-400">ID / ADMISSION NO.</label><div class="font-bold">${patron.id}</div></div>
+                        <div class="p-4 bg-gray-50 rounded-2xl"><label class="text-[10px] font-bold text-gray-400">CLASS / ROLE</label><div class="text-sm font-bold">${formatClass(patron.studentClass)}</div></div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 bg-white rounded-3xl border flex flex-col min-h-[500px] overflow-hidden">
+                    <div class="flex border-b bg-gray-50 px-6 pt-4 gap-6 overflow-x-auto">
+                        <button onclick="switchPatronTab('activity')" id="ptab-activity" class="pb-3 text-sm font-bold border-b-2 border-primary text-primary transition-colors whitespace-nowrap">Book Activity</button>
+                        <button onclick="switchPatronTab('books')" id="ptab-books" class="pb-3 text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-800 transition-colors whitespace-nowrap">Entire Books Taken</button>
+                    </div>
+
+                    <div id="pcontent-activity" class="flex-1 overflow-y-auto block">
+                        ${bookActivity.length ? `
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-gray-50 text-[10px] border-b sticky top-0 z-10">
+                                    <tr><th class="p-4 pl-6">Type</th><th class="p-4">Book Details</th><th class="p-4 pr-6 text-right">Date</th></tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    ${bookActivity.map(h => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="p-4 pl-6 font-bold text-[11px] ${h.type === 'OUT' ? 'text-orange-500' : h.type === 'IN' ? 'text-green-500' : 'text-purple-500'}">${h.type}</td>
+                                            <td class="p-4 text-gray-800">${h.item}</td>
+                                            <td class="p-4 pr-6 text-right text-gray-400 font-mono text-xs">${new Date(h.date).toLocaleDateString()}</td>
+                                        </tr>`).join('')}
+                                </tbody>
+                            </table>
+                        ` : `<div class="p-20 text-center text-gray-400 italic">No book checkout activity on record.</div>`}
+                    </div>
+
+                    <div id="pcontent-books" class="flex-1 overflow-y-auto hidden">
+                        ${booksTaken.length ? `
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-gray-50 text-[10px] border-b sticky top-0 z-10">
+                                    <tr><th class="p-4 pl-6">Barcode</th><th class="p-4">Title</th><th class="p-4 text-center">Times Borrowed</th><th class="p-4 pr-6 text-right">Last Borrowed</th></tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    ${booksTaken.map(b => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="p-4 pl-6 text-gray-500 font-mono text-xs">${b.bid}</td>
+                                            <td class="p-4 font-bold text-gray-800">${b.title}</td>
+                                            <td class="p-4 text-center"><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-[10px] font-bold">${b.count}</span></td>
+                                            <td class="p-4 pr-6 text-right text-gray-400 font-mono text-xs">${new Date(b.lastDate).toLocaleDateString()}</td>
+                                        </tr>`).join('')}
+                                </tbody>
+                            </table>
+                        ` : `<div class="p-20 text-center text-gray-400 italic">No distinct books have been borrowed yet.</div>`}
+                    </div>
+                </div>
+            </div>`; 
+        }
+
+        function switchPatronTab(tab) {
+            ['activity', 'books'].forEach(t => {
+                const elTab = document.getElementById(`ptab-${t}`);
+                const elContent = document.getElementById(`pcontent-${t}`);
+                if(!elTab || !elContent) return;
+                
+                if (t === tab) {
+                    elTab.classList.add('border-primary', 'text-primary');
+                    elTab.classList.remove('border-transparent', 'text-gray-400');
+                    elContent.classList.remove('hidden');
+                    elContent.classList.add('block');
+                } else {
+                    elTab.classList.remove('border-primary', 'text-primary');
+                    elTab.classList.add('border-transparent', 'text-gray-400');
+                    elContent.classList.add('hidden');
+                    elContent.classList.remove('block');
+                }
+            });
+        }
+
+        // --- CATALOG LOGIC ---
+        function renderCatalog(f = '') { 
+            const grid = document.getElementById('catalog-grid'); 
+            const search = f.toLowerCase();
+            const filtered = books.filter(b => 
+                b.id.toLowerCase().includes(search) || 
+                (b.classNo && b.classNo.toLowerCase().includes(search)) ||
+                b.title.toLowerCase().includes(search) || 
+                (b.author && b.author.toLowerCase().includes(search))
+            ); 
+            grid.innerHTML = filtered.map(b => `
+                <div class="bg-white p-8 rounded-3xl border hover:border-primary transition-all cursor-pointer" onclick="switchView('book-detail', '${b.id}')">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-primary"><i class="fas fa-book"></i></div>
+                        <span class="text-[9px] px-2 py-1 rounded-full font-bold uppercase ${b.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}">${b.status}</span>
+                    </div>
+                    ${b.classNo ? `<div class="text-[10px] font-mono text-gray-400 mb-1">${b.classNo}</div>` : ''}
+                    <h4 class="font-bold text-lg line-clamp-2 leading-tight mb-1">${b.title}</h4>
+                    <p class="text-sm text-gray-500 mb-6">by ${b.author || 'Unknown'}</p>
+                    <div class="flex justify-between items-center mt-auto border-t pt-4 text-xs font-bold text-gray-400">
+                        <span class="font-mono flex items-center gap-1"><i class="fas fa-barcode"></i> ${b.id}</span>
+                        <span class="text-primary">₹${(b.price || 0).toFixed(2)}</span>
+                    </div>
+                </div>
+            `).join(''); 
+            
+            if(!filtered.length) {
+                grid.innerHTML = `<div class="col-span-full p-12 text-center text-gray-400 italic bg-white rounded-3xl border border-dashed border-gray-200">No books found in the catalog.</div>`;
+            }
+        }
+        
+        function renderBookDetail(bid) { 
+            const book = books.find(b => b.id === bid); 
+            const container = document.getElementById('book-detail-content'); 
+            if (!book) return; 
+            const oneMonthAgo = new Date(); oneMonthAgo.setDate(oneMonthAgo.getDate() - 30); 
+            const bookHistory = history.filter(h => h.bid === bid && new Date(h.date) >= oneMonthAgo).reverse(); 
+
+            let displayStatus = book.status;
+            let holderDisplay = '';
+            
+            if (book.status === 'loaned' && book.holder) {
+                const patron = patrons.find(p => p.id === book.holder);
+                const patronName = patron ? patron.name : book.holder;
+                const renewals = book.renewalCount || 0;
+                
+                displayStatus = patronName; 
+                
+                holderDisplay = `
+                    <div class="mt-2 pt-2 border-t border-current/10 text-[11px]">
+                        ID / Ad No: <b class="text-gray-900">${book.holder}</b><br>
+                        Due: ${book.dueDate} ${renewals > 0 ? `(Renewed: ${renewals}/2)` : ''}
+                    </div>`;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="bg-white rounded-3xl border p-8">
+                        <div class="w-20 h-20 bg-primary/20 rounded-3xl flex items-center justify-center text-primary text-2xl mb-6 shadow-inner"><i class="fas fa-book-open"></i></div>
+                        <h3 class="text-2xl font-bold text-gray-800 leading-tight">${book.title}</h3>
+                        <p class="text-sm text-gray-500 mt-1">by ${book.author || 'Unknown'}</p>
+                        <div class="mt-8 space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="p-4 bg-gray-50 rounded-2xl"><label class="text-[10px] font-bold text-gray-400 uppercase">CLASS NO.</label><div class="text-sm font-bold text-gray-700 break-all">${book.classNo || 'N/A'}</div></div>
+                                <div class="p-4 bg-gray-50 rounded-2xl"><label class="text-[10px] font-bold text-gray-400 uppercase">BARCODE</label><div class="text-sm font-bold text-gray-700 break-all">${book.id}</div></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="p-4 bg-gray-50 rounded-2xl"><label class="text-[10px] font-bold text-gray-400 uppercase">PUBLICATION</label><div class="text-sm font-bold text-gray-700">${book.pub || 'N/A'}</div></div>
+                                <div class="p-4 bg-gray-50 rounded-2xl"><label class="text-[10px] font-bold text-gray-400 uppercase">REPLACEMENT PRICE</label><div class="text-sm font-bold text-gray-700">₹${(book.price || 0).toFixed(2)}</div></div>
+                            </div>
+                            <div class="p-4 rounded-2xl ${book.status === 'available' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-orange-50 text-orange-700 border-orange-100'} border">
+                                <label class="text-[10px] font-bold opacity-60 uppercase">CURRENT STATUS</label>
+                                <div class="text-sm font-bold uppercase">${displayStatus}</div>
+                                ${holderDisplay}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 bg-white rounded-3xl border flex flex-col h-full overflow-hidden shadow-sm">
+                        <div class="p-6 bg-gray-50 border-b flex justify-between items-center">
+                            <h3 class="font-bold text-gray-800">One-Month Book Activity</h3>
+                            <span class="bg-primary px-3 py-1 rounded-full text-[10px] font-bold text-green-900">${bookHistory.length} Record(s)</span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto">
+                            ${bookHistory.length ? `
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-gray-50 text-[10px] border-b">
+                                        <tr><th class="p-4 pl-6">Action</th><th class="p-4">Patron</th><th class="p-4">Actor</th><th class="p-4 text-right pr-6">Date</th></tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-50">
+                                        ${bookHistory.map(h => {
+                                            const student = h.pid ? patrons.find(p => p.id === h.pid) : null;
+                                            const studentDisplay = student ? `${student.name} (${student.id})` : (h.pid ? `Patron Info Missing (${h.pid})` : '-');
+                                            const hActorPatron = patrons.find(p => p.id === h.actor || p.name === h.actor);
+                                            const hActorName = hActorPatron ? hActorPatron.name : h.actor;
+                                            return `<tr class="hover:bg-gray-50 transition-colors"><td class="p-4 pl-6 font-bold text-primary uppercase text-[10px]">${h.type}</td><td class="p-4 text-gray-700">${studentDisplay}</td><td class="p-4 text-gray-600">${hActorName}</td><td class="p-4 text-right pr-6 text-gray-400 font-mono">${new Date(h.date).toLocaleDateString()}</td></tr>`;
+                                        }).join('')}
+                                    </tbody>
+                                </table>` : `<div class="p-20 text-center text-gray-400 italic">No activity.</div>`
+                            }
+                        </div>
+                    </div>
+                </div>`; 
+        }
+
+        // --- FINES LOGIC (VIEW ONLY) ---
+        function renderFines() { 
+            const tbody = document.getElementById('fines-table-body'); 
+            if(!tbody) return;
+            const searchTerm = (document.getElementById('late-fines-search')?.value || '').toLowerCase();
+            const classFilter = document.getElementById('late-fines-class-filter')?.value || '';
+            
+            const lateFines = fines.filter(f => {
+                if (f.fineType === 'ADDITIONAL') return false;
+                const matchesSearch = f.patronName.toLowerCase().includes(searchTerm) || f.patronId.toLowerCase().includes(searchTerm);
+                let matchesClass = true;
+                if (classFilter !== '') {
+                    const patron = patrons.find(p => p.id === f.patronId);
+                    const sClass = patron ? (patron.studentClass || '').toString().toLowerCase() : '';
+                    const classRegex = new RegExp(`\\b${classFilter}\\b`, 'i');
+                    matchesClass = classRegex.test(sClass) || sClass === classFilter;
+                }
+                return matchesSearch && matchesClass;
+            });
+            
+            tbody.innerHTML = lateFines.map(f => `<tr>
+                <td class="p-6 font-bold text-gray-800">${f.patronName} <span class="font-normal text-xs text-gray-500 font-mono">(${f.patronId})</span></td>
+                <td class="p-6 text-sm text-gray-500">${f.reason}</td>
+                <td class="p-6 font-bold text-red-500">₹${f.amount.toFixed(2)}</td>
+                <td class="p-6 text-xs text-gray-400">${f.date}</td>
+            </tr>`).join(''); 
+            
+            if(!lateFines.length) tbody.innerHTML = `<tr><td colspan="4" class="p-12 text-center text-gray-400 italic">No late fines found.</td></tr>`; 
+        }
+
+        function renderAdditionalFines() {
+            const tbody = document.getElementById('additional-fines-table-body'); 
+            if(!tbody) return;
+            const searchTerm = (document.getElementById('add-fines-search')?.value || '').toLowerCase();
+            const classFilter = document.getElementById('add-fines-class-filter')?.value || '';
+            
+            const addFines = fines.filter(f => {
+                if (f.fineType !== 'ADDITIONAL') return false;
+                const matchesSearch = f.patronName.toLowerCase().includes(searchTerm) || f.patronId.toLowerCase().includes(searchTerm);
+                let matchesClass = true;
+                if (classFilter !== '') {
+                    const patron = patrons.find(p => p.id === f.patronId);
+                    const sClass = patron ? (patron.studentClass || '').toString().toLowerCase() : '';
+                    const classRegex = new RegExp(`\\b${classFilter}\\b`, 'i');
+                    matchesClass = classRegex.test(sClass) || sClass === classFilter;
+                }
+                return matchesSearch && matchesClass;
+            });
+            
+            tbody.innerHTML = addFines.map(f => `<tr>
+                <td class="p-6 font-bold text-gray-800">${f.patronName} <span class="font-normal text-xs text-gray-500 font-mono">(${f.patronId})</span></td>
+                <td class="p-6 text-sm text-gray-500">${f.reason}</td>
+                <td class="p-6 font-bold text-purple-500">₹${f.amount.toFixed(2)}</td>
+                <td class="p-6 text-xs text-gray-400">${f.date}</td>
+            </tr>`).join(''); 
+            
+            if(!addFines.length) tbody.innerHTML = `<tr><td colspan="4" class="p-12 text-center text-gray-400 italic">No additional fines found.</td></tr>`; 
+        }
+
+        // --- HISTORY LOGIC ---
+        function setHistoryTab(tab) {
+            currentHistoryTab = tab;
+            ['books', 'fines'].forEach(t => {
+                const el = document.getElementById(`tab-hist-${t}`);
+                if (t === tab) {
+                    el.classList.add('border-primary', 'text-primary');
+                    el.classList.remove('border-transparent', 'text-gray-400');
+                } else {
+                    el.classList.remove('border-primary', 'text-primary');
+                    el.classList.add('border-transparent', 'text-gray-400');
+                }
+            });
+            renderHistory();
+        }
+
+        function renderHistory() { 
+            const tbody = document.getElementById('history-table-body');
+            const thead = document.getElementById('history-table-head');
+            if(!tbody || !thead) return;
+
+            const filteredHistory = history.filter(h => {
+                const t = (h.type || '').toUpperCase();
+                if (currentHistoryTab === 'books') return ['OUT', 'IN', 'RENEW', 'RETURN', 'CATALOG'].includes(t);
+                else if (currentHistoryTab === 'fines') return ['FINE', 'PAYMENT'].includes(t);
+                return true;
+            }).reverse(); 
+
+            thead.innerHTML = `<tr>
+                <th class="p-6">Type</th>
+                <th class="p-6">Details</th>
+                <th class="p-6">Patron</th>
+                <th class="p-6">Actor/User</th>
+                <th class="p-6">Date & Time</th>
+            </tr>`;
+
+            if(!filteredHistory.length) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-12 text-center text-gray-400 italic">No logs found in this category.</td></tr>`;
+                return;
+            }
+
+            if (currentHistoryTab === 'books') {
+                const today = new Date();
+                const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                const startOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+
+                const todayItems = [];
+                const thisMonthItems = [];
+                const lastMonthItems = [];
+
+                filteredHistory.forEach(h => {
+                    const d = new Date(h.date);
+                    if (d >= startOfToday) todayItems.push(h);
+                    else if (d >= startOfThisMonth) thisMonthItems.push(h);
+                    else if (d >= startOfLastMonth) lastMonthItems.push(h);
+                });
+
+                const renderGroup = (items) => items.map(h => {
+                    const student = h.pid ? patrons.find(p => p.id === h.pid) : null;
+                    const studentDisplay = student ? `${student.name} (${student.id})` : (h.pid ? `Patron Info Missing (${h.pid})` : '-');
+                    return `
+                        <tr class="hover:bg-gray-50 transition-colors bg-white">
+                            <td class="p-6 font-bold text-xs text-primary uppercase">${h.type}</td>
+                            <td class="p-6 text-sm font-semibold text-gray-800">${h.item}</td>
+                            <td class="p-6 text-sm text-gray-700">${studentDisplay}</td>
+                            <td class="p-6 text-sm text-gray-500">${h.actor || 'System'}</td>
+                            <td class="p-6 text-xs text-gray-400 font-mono">${new Date(h.date).toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                let html = '';
+                if(todayItems.length) {
+                    html += `<tr class="bg-gray-100/80"><td colspan="5" class="px-6 py-3 text-xs font-extrabold text-gray-600 uppercase tracking-widest border-y border-gray-200 shadow-inner"><i class="fas fa-calendar-day mr-2 text-primary"></i> Today</td></tr>` + renderGroup(todayItems);
+                }
+                if(thisMonthItems.length) {
+                    html += `<tr class="bg-gray-100/80"><td colspan="5" class="px-6 py-3 text-xs font-extrabold text-gray-600 uppercase tracking-widest border-y border-gray-200 shadow-inner"><i class="fas fa-calendar-alt mr-2 text-primary"></i> This Month</td></tr>` + renderGroup(thisMonthItems);
+                }
+                if(lastMonthItems.length) {
+                    html += `<tr class="bg-gray-100/80"><td colspan="5" class="px-6 py-3 text-xs font-extrabold text-gray-600 uppercase tracking-widest border-y border-gray-200 shadow-inner"><i class="fas fa-calendar-minus mr-2 text-primary"></i> Last Month</td></tr>` + renderGroup(lastMonthItems);
+                }
+
+                if (!html) {
+                    html = `<tr><td colspan="5" class="p-12 text-center text-gray-400 italic">No recent book activity.</td></tr>`;
+                }
+                tbody.innerHTML = html;
+                
+            } else {
+                tbody.innerHTML = filteredHistory.map(h => {
+                    const student = h.pid ? patrons.find(p => p.id === h.pid) : null;
+                    const studentDisplay = student ? `${student.name} (${student.id})` : (h.pid ? `Patron Info Missing (${h.pid})` : '-');
+                    return `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="p-6 font-bold text-xs text-primary uppercase">${h.type}</td>
+                            <td class="p-6 text-sm font-semibold text-gray-800">${h.item}</td>
+                            <td class="p-6 text-sm text-gray-700">${studentDisplay}</td>
+                            <td class="p-6 text-sm text-gray-500">${h.actor || 'System'}</td>
+                            <td class="p-6 text-xs text-gray-400 font-mono">${new Date(h.date).toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join(''); 
+            }
+        }
+
+        async function handleChangePassword(e) {
+            e.preventDefault();
+            const currentInput = document.getElementById('pw-current').value;
+            const nPw = document.getElementById('pw-new').value;
+            const confirmPw = document.getElementById('pw-confirm').value;
+
+            if (nPw !== confirmPw) return showToast("New passwords do not match!", "error");
+
+            const userIndex = systemUsers.findIndex(u => u.username === currentUser.username);
+
+            if (userIndex > -1) {
+                if (systemUsers[userIndex].password && systemUsers[userIndex].password !== currentInput) {
+                    return showToast("Incorrect current password!", "error");
+                }
+                systemUsers[userIndex].password = nPw;
+                currentUser.password = nPw;
+                sessionStorage.setItem('sfadc_user', JSON.stringify(currentUser));
+                await save();
+                showToast("Password updated successfully!");
+                e.target.reset();
+                switchView('home');
+            } else {
+                showToast("Error finding user profile.", "error");
+            }
+        }
+
+        function renderSettings() {
+            document.getElementById('ai-provider').value = fineSettings.aiProvider || 'none';
+            document.getElementById('ai-key').value = fineSettings.aiKey || '';
+            document.getElementById('ai-model').value = fineSettings.aiModel || '';
+            toggleAIModelPlaceholder();
+        }
+
+        // --- AI Configuration and Local State Sync ---
+        function toggleAIModelPlaceholder() {
+            const provider = document.getElementById('ai-provider').value;
+            const modelInput = document.getElementById('ai-model');
+            if (provider === 'gemini') {
+                modelInput.placeholder = 'gemini-1.5-flash';
+            } else if (provider === 'openai') {
+                modelInput.placeholder = 'gpt-4o-mini';
+            } else {
+                modelInput.placeholder = 'N/A';
+            }
+        }
+
+        async function handleAISettings(e) {
+            e.preventDefault();
+            const provider = document.getElementById('ai-provider').value;
+            const key = document.getElementById('ai-key').value.trim();
+            const model = document.getElementById('ai-model').value.trim() || (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini');
+            
+            fineSettings = { 
+                ...fineSettings, 
+                aiProvider: provider, 
+                aiKey: key, 
+                aiModel: model 
+            };
+            
+            await logHistory('SYSTEM', `Updated AI Settings (Provider: ${provider})`, currentUser.name || currentUser.username);
+            await save();
+            showToast("AI Configuration updated successfully!");
+        }
+
+        // --- AI Chatbot Interface and Processing ---
+        function toggleChatWindow() {
+            const windowEl = document.getElementById('chat-window');
+            const iconEl = document.getElementById('chat-toggle-icon');
+            const statusLabel = document.getElementById('ai-status-label');
+            const isHidden = windowEl.classList.contains('hidden');
+            
+            if (isHidden) {
+                const isOnline = navigator.onLine;
+                const hasAI = fineSettings.aiProvider && fineSettings.aiProvider !== 'none' && fineSettings.aiKey;
+                if (isOnline && hasAI) {
+                    statusLabel.innerText = `${fineSettings.aiProvider === 'gemini' ? 'Gemini' : 'OpenAI'} Online`;
+                } else {
+                    statusLabel.innerText = "Local Rule Agent (Offline)";
+                }
+
+                windowEl.classList.remove('hidden');
+                setTimeout(() => {
+                    windowEl.classList.remove('opacity-0', 'scale-95');
+                    windowEl.classList.add('opacity-100', 'scale-100');
+                }, 10);
+                iconEl.className = "fas fa-times text-xl";
+                document.getElementById('chat-input').focus();
+            } else {
+                windowEl.classList.remove('opacity-100', 'scale-100');
+                windowEl.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => {
+                    windowEl.classList.add('hidden');
+                }, 300);
+                iconEl.className = "fas fa-comment-dots text-xl";
+            }
+        }
+
+        function appendChatMessage(sender, text) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = "flex items-start gap-2.5 " + (sender === 'user' ? 'justify-end' : '');
+            
+            const avatar = sender === 'user' 
+                ? `<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-green-900 text-xs font-bold shrink-0 order-2">U</div>`
+                : `<div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-800 text-xs font-bold shrink-0">AI</div>`;
+                
+            const bubbleStyle = sender === 'user'
+                ? 'bg-green-800 text-white rounded-tr-none'
+                : 'bg-white text-gray-700 rounded-tl-none';
+                
+            messageDiv.innerHTML = `
+                ${avatar}
+                <div class="${bubbleStyle} p-3 rounded-2xl shadow-sm max-w-[80%] break-words">
+                    ${text}
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        async function handleChatSubmit(e) {
+            e.preventDefault();
+            const inputEl = document.getElementById('chat-input');
+            const query = inputEl.value.trim();
+            if (!query) return;
+            
+            appendChatMessage('user', query);
+            inputEl.value = '';
+            
+            const isOnline = navigator.onLine;
+            const provider = fineSettings.aiProvider || 'none';
+            const apiKey = fineSettings.aiKey;
+
+            // Route to Online API if connected and configured
+            if (isOnline && provider !== 'none' && apiKey) {
+                appendChatMessage('bot', '<span class="italic text-gray-400"><i class="fas fa-spinner fa-spin mr-1"></i> Library Assistant is analyzing data...</span>');
+                try {
+                    const reply = await queryOnlineAI(query, provider, apiKey, fineSettings.aiModel);
+                    
+                    // Remove loading placeholder
+                    const messagesContainer = document.getElementById('chat-messages');
+                    messagesContainer.removeChild(messagesContainer.lastChild);
+                    
+                    appendChatMessage('bot', reply);
+                } catch (err) {
+                    console.error("API Error: ", err);
+                    const messagesContainer = document.getElementById('chat-messages');
+                    messagesContainer.removeChild(messagesContainer.lastChild);
+                    appendChatMessage('bot', "Could not contact the online server. Running offline fallback...<br>" + generateLocalFallbackResponse(query));
+                }
+            } else {
+                // Fallback to offline rule matching
+                setTimeout(() => {
+                    const reply = generateLocalFallbackResponse(query);
+                    appendChatMessage('bot', reply);
+                }, 300);
+            }
+        }
+
+        // --- Generative AI Online Requester ---
+        async function queryOnlineAI(userQuery, provider, apiKey, modelName) {
+            const liveState = {
+                patrons: patrons.map(p => ({ id: p.id, name: p.name, class: p.studentClass, balance: p.balance })),
+                books: books.map(b => ({ id: b.id, title: b.title, author: b.author, status: b.status, holder: b.holder, dueDate: b.dueDate })),
+                fines: fines.map(f => ({ patronId: f.patronId, name: f.patronName, reason: f.reason, amount: f.amount, type: f.fineType })),
+                fineSettings: { gracePeriod: fineSettings.gracePeriod, fineAmount: fineSettings.fineAmount }
+            };
+
+            const systemPrompt = `You are the SFADC Library AI Assistant. Use this live data to answer the user:
+            - PATRONS: ${JSON.stringify(liveState.patrons)}
+            - BOOKS: ${JSON.stringify(liveState.books)}
+            - OUTSTANDING FINES: ${JSON.stringify(liveState.fines)}
+            - RULES: Grace period is ${liveState.fineSettings.gracePeriod} days. Fine is ₹${liveState.fineSettings.fineAmount}/day.
+            
+            Answer precisely in clean HTML paragraph formatting. Do not output markdown, raw json, or code blocks. Keep replies concise and extremely clear.`;
+
+            if (provider === 'gemini') {
+                const model = modelName || 'gemini-1.5-flash';
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: systemPrompt },
+                                { text: "User Question: " + userQuery }
+                            ]
+                        }]
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message);
+                return data.candidates[0].content.parts[0].text;
+            } 
+            
+            if (provider === 'openai') {
+                const model = modelName || 'gpt-4o-mini';
+                const url = `https://api.openai.com/v1/chat/completions`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userQuery }
+                        ],
+                        temperature: 0.3
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message);
+                return data.choices[0].message.content;
+            }
+            
+            throw new Error("Invalid provider");
+        }
+
+        // --- Local Fallback Logic (Completely Offline Helper) ---
+        function generateLocalFallbackResponse(query) {
+            const cleanQuery = query.toLowerCase();
+            
+            if (cleanQuery.includes('help') || cleanQuery.includes('what can you do') || cleanQuery.includes('command')) {
+                return `I can help you look up structural elements:
+                <br>• Ask <b>"who has fines?"</b> or <b>"list fines"</b> to identify debts.
+                <br>• Ask <b>"which books are checked out?"</b> or <b>"active loans"</b>.
+                <br>• Check availability: <b>"is [book name] available?"</b>
+                <br>• Ask <b>"total books"</b> or <b>"total patrons"</b>.
+                <br>• Ask <b>"find patron [name/id]"</b>.`;
+            }
+            if (cleanQuery.includes('total book') || cleanQuery.includes('how many book')) {
+                return `There are currently <b>${books.length}</b> books cataloged in the system.`;
+            }
+            if (cleanQuery.includes('total patron') || cleanQuery.includes('how many patron') || cleanQuery.includes('how many member')) {
+                return `The library has <b>${patrons.length}</b> registered patrons.`;
+            }
+            if (cleanQuery.includes('checked out') || cleanQuery.includes('loan') || cleanQuery.includes('borrowed') || cleanQuery.includes('on loan')) {
+                const activeLoans = books.filter(b => b.status === 'loaned');
+                if (activeLoans.length === 0) return "There are currently no active loans.";
+                let reply = `There are currently <b>${activeLoans.length}</b> active loans:<br><ul class="list-disc pl-4 mt-1">`;
+                activeLoans.forEach(b => {
+                    const patron = patrons.find(p => p.id === b.holder);
+                    reply += `<li>"<b>${b.title}</b>" -> ${patron ? patron.name : b.holder} (Due: ${b.dueDate || 'N/A'})</li>`;
+                });
+                return reply + "</ul>";
+            }
+            if (cleanQuery.includes('fine') || cleanQuery.includes('owe') || cleanQuery.includes('balance') || cleanQuery.includes('debt')) {
+                const outstanding = patrons.filter(p => p.balance > 0);
+                if (outstanding.length === 0) return "No outstanding fine balances detected.";
+                let reply = `Found <b>${outstanding.length}</b> patron(s) with fines:<br><ul class="list-disc pl-4 mt-1">`;
+                outstanding.forEach(p => {
+                    reply += `<li>${p.name} (ID: ${p.id}): <b>₹${p.balance.toFixed(2)}</b></li>`;
+                });
+                return reply + "</ul>";
+            }
+            if (cleanQuery.includes('find patron') || cleanQuery.includes('search patron') || cleanQuery.includes('who is')) {
+                const target = cleanQuery.replace('find patron', '').replace('search patron', '').replace('who is', '').trim();
+                if (!target) return "Please specify a name or ID.";
+                const matches = patrons.filter(p => p.name.toLowerCase().includes(target) || p.id.toLowerCase() === target);
+                if (matches.length === 0) return `No patron matching "<b>${target}</b>" found.`;
+                let reply = `Matches:<br><ul class="list-disc pl-4 mt-1">`;
+                matches.forEach(p => {
+                    reply += `<li><b>${p.name}</b> (ID: ${p.id}) - Fine: ₹${(p.balance || 0).toFixed(2)}</li>`;
+                });
+                return reply + "</ul>";
+            }
+            if (cleanQuery.includes('available') || cleanQuery.includes('have') || cleanQuery.includes('is there')) {
+                let bookName = cleanQuery.replace('is', '').replace('available', '').replace('have', '').replace('is there', '').replace('book', '').replace(/\?/g, '').trim();
+                if (bookName.length < 2) return "What title are you looking for?";
+                const found = books.filter(b => b.title.toLowerCase().includes(bookName) || b.id.toLowerCase() === bookName);
+                if (found.length === 0) return `No books matching "<b>${bookName}</b>" found.`;
+                let reply = `Matches:<br><ul class="list-disc pl-4 mt-1">`;
+                found.forEach(b => {
+                    reply += `<li>"<b>${b.title}</b>" (${b.id}) - ${b.status === 'available' ? 'Available' : 'Checked Out'}</li>`;
+                });
+                return reply + "</ul>";
+            }
+            return "I am currently offline. I can help search local books/patrons if you ask about 'fines', 'loans', or book titles. Type 'help' for formatting hints.";
+        }
+
+        function showToast(msg, variant = "success") { const t = document.getElementById('toast'); document.getElementById('toast-message').innerText = msg; t.classList.remove('translate-y-32', 'opacity-0'); setTimeout(() => t.classList.add('translate-y-32', 'opacity-0'), 3000); }
+
+        initializeApp();
+    </script>
+</body>
+</html>
